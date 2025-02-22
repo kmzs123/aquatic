@@ -1,0 +1,14 @@
+services:
+  aquatic_udp:
+    build:
+      context: .
+      dockerfile: ./docker/aquatic_udp.Dockerfile
+      args:
+        # According to the protocol changes: udp http ws
+        PROTOCOL: udp
+    ports:
+      - 3000:3000/udp
+    # Or use host mode
+    #network_mode: host
+    volumes:
+      - ./config/udp:/app/
