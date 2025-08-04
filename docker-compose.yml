@@ -2,7 +2,7 @@ services:
   aquatic_udp:
     build:
       context: .
-      dockerfile: ./docker/aquatic_udp.Dockerfile
+      dockerfile: ./docker/aquatic.Dockerfile
       args:
         # According to the protocol changes: udp http ws
         PROTOCOL: udp
@@ -12,3 +12,18 @@ services:
     #network_mode: host
     volumes:
       - ./config/udp:/app/
+  aquatic_http:
+    build:
+      context: .
+      dockerfile: ./docker/aquatic.Dockerfile
+      args:
+        # According to the protocol changes: udp http ws
+        PROTOCOL: http
+    ports:
+      - 3000:3000/tcp
+    # Or use host mode
+    #network_mode: host
+    # HTTP must have "privileged: true"
+    privileged: true
+    volumes:
+      - ./config/http:/app/
