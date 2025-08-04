@@ -83,8 +83,8 @@ FROM debian:stable-slim
 # According to the protocol changes: udp http ws
 ARG PROTOCOL=udp
 
-ENV CONFIG_FILE_CONTENTS "ChangeMe" \
-    ACCESS_LIST_CONTENTS "ChangeMe"
+ENV CONFIG_FILE_CONTENTS="ChangeMe" \
+    ACCESS_LIST_CONTENTS="ChangeMe"
 
 WORKDIR /app/
 
