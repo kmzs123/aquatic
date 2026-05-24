@@ -21,7 +21,7 @@ use glommio::channels::local_channel::{new_bounded, LocalReceiver, LocalSender};
 use glommio::net::{TcpListener, TcpStream};
 use glommio::timer::TimerActionRepeat;
 use glommio::{enclose, prelude::*};
-use slotmap::HopSlotMap;
+use slotmap::DenseSlotMap;
 
 use crate::common::*;
 use crate::config::Config;
@@ -82,7 +82,7 @@ pub async fn run_socket_worker(
         .map_err(|err| anyhow::anyhow!("join request mesh: {:#}", err))?;
     let request_senders = Rc::new(request_senders);
 
-    let connection_handles = Rc::new(RefCell::new(HopSlotMap::with_key()));
+    let connection_handles = Rc::new(RefCell::new(DenseSlotMap::with_key()));
 
     TimerActionRepeat::repeat(enclose!((config, connection_handles) move || {
         clean_connections(
@@ -122,7 +122,7 @@ struct ListenerState {
     access_list: Arc<ArcSwapAny<Arc<AccessList>>>,
     opt_tls_config: Option<Arc<ArcSwap<RustlsConfig>>>,
     server_start_instant: ServerStartInstant,
-    connection_handles: Rc<RefCell<HopSlotMap<ConnectionId, ConnectionHandle>>>,
+    connection_handles: Rc<RefCell<DenseSlotMap<ConnectionId, ConnectionHandle>>>,
     request_senders: Rc<Senders<ChannelRequest>>,
     worker_index: usize,
 }
@@ -134,12 +134,25 @@ impl ListenerState {
         while let Some(stream) = incoming.next().await {
             match stream {
                 Ok(stream) => {
-                    let (close_conn_sender, close_conn_receiver) = new_bounded(1);
-
-                    let valid_until = Rc::new(RefCell::new(ValidUntil::new(
+                    let opt_valid_until = ValidUntil::new(
                         self.server_start_instant,
                         self.config.cleaning.max_connection_idle,
-                    )));
+                    );
+
+                    let valid_until = if let Some(valid_until) = opt_valid_until {
+                        Rc::new(RefCell::new(valid_until))
+                    } else {
+                        ::log::warn!("clock monotonicity error, not establishing this connection");
+
+                        spawn_local(async move {
+                            let _ = stream.shutdown(std::net::Shutdown::Both).await;
+                        })
+                        .detach();
+
+                        continue;
+                    };
+
+                    let (close_conn_sender, close_conn_receiver) = new_bounded(1);
 
                     let connection_id =
                         self.connection_handles
@@ -228,20 +241,22 @@ impl ListenerState {
 
 async fn clean_connections(
     config: Rc<Config>,
-    connection_slab: Rc<RefCell<HopSlotMap<ConnectionId, ConnectionHandle>>>,
+    connection_slab: Rc<RefCell<DenseSlotMap<ConnectionId, ConnectionHandle>>>,
     server_start_instant: ServerStartInstant,
 ) -> Option<Duration> {
-    let now = server_start_instant.seconds_elapsed();
+    if let Some(now) = server_start_instant.seconds_elapsed() {
+        connection_slab.borrow_mut().retain(|_, handle| {
+            if handle.valid_until.borrow().valid(now) {
+                true
+            } else {
+                let _ = handle.close_conn_sender.try_send(());
 
-    connection_slab.borrow_mut().retain(|_, handle| {
-        if handle.valid_until.borrow().valid(now) {
-            true
-        } else {
-            let _ = handle.close_conn_sender.try_send(());
-
-            false
-        }
-    });
+                false
+            }
+        });
+    } else {
+        ::log::warn!("clock monotonicity failure, could not clean torrents and peers");
+    }
 
     Some(Duration::from_secs(
         config.cleaning.connection_cleaning_interval,

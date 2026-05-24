@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use anyhow::Context;
 use constant_time_eq::constant_time_eq;
-use getrandom::getrandom;
+use getrandom::fill;
 
 use aquatic_common::CanonicalSocketAddr;
 use aquatic_udp_protocol::ConnectionId;
@@ -43,8 +43,7 @@ impl ConnectionValidator {
     pub fn new(config: &Config) -> anyhow::Result<Self> {
         let mut key = [0; 32];
 
-        getrandom(&mut key)
-            .with_context(|| "Couldn't get random bytes for ConnectionValidator key")?;
+        fill(&mut key).with_context(|| "Couldn't get random bytes for ConnectionValidator key")?;
 
         let keyed_hasher = blake3::Hasher::new_keyed(&key);
 
@@ -98,7 +97,11 @@ impl ConnectionValidator {
     }
 
     pub fn update_elapsed(&mut self) {
-        self.seconds_since_start = self.start_time.elapsed().as_secs() as u32;
+        if let Some(dur) = Instant::now().checked_duration_since(self.start_time) {
+            self.seconds_since_start = dur.as_secs() as u32;
+        } else {
+            ::log::error!("Couldn't not update connection validator timer due to clock monotonicity error. Expired connections may not be rejected.");
+        }
     }
 
     fn hash(&mut self, elapsed: [u8; 4], ip_addr: IpAddr) -> [u8; 4] {

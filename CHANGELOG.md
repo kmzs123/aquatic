@@ -2,12 +2,48 @@
 
 ## Unreleased
 
+### General
+
+#### Changed
+
+* [Monotonicity errors](https://doc.rust-lang.org/std/time/struct.Instant.html)
+  deriving from the OS or the hardware are now handled explicitly and logged.
+  If such errors occur, peers may be removed (cleaned) earlier than they should
+  be, or not be removed at all, depending on which code paths are affected.
+  Some attempts are now made to mitigate such errors, but they are only partly
+  effective as the tracker needs to be able to accurately keep track of time.
+* Update dependencies
+
 ### aquatic_udp
+
+#### Added
+
+* Implement optional full scrape exports (information on how many seeders and
+  leechers are tracked for each info hash) to a text file 
 
 #### Changed
 
 * (Breaking) Open one socket each for IPv4 and IPv6. The config file now has
   one setting for each.
+* On FreeBSD, set socket option SO_REUSEPORT_LB instead of SO_REUSEPORT. While
+  the latter implies load balancing on Linux, it does not on FreeBSD.
+* Keep locks for a shorter period of time while cleaning torrents. This
+  makes it possible to keep processing requests, at the expense of somewhat
+  higher RAM usage (during cleaning)
+
+#### Fixed
+
+* Avoid the unlikely but possible situation of an announcing peer not being
+  added to the swarm if the info hash has no other active peers and cleaning is
+  in progress. The fix additionally slightly decreases RAM usage.
+
+### aquatic_udp_protocol
+
+#### Changed
+
+* (Breaking) Upgrade to zerocopy v0.8, changing exported derives of various types
+* (Breaking) Remove AnnounceEventBytes wrapper type (use AnnounceEvent directly instead)
+* (Breaking) Turn AnnounceActionPlaceholder into an enum with one variant
 
 ### aquatic_http
 

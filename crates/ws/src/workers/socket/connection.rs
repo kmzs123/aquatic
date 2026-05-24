@@ -159,13 +159,11 @@ impl ConnectionRunner {
     where
         S: futures::AsyncRead + futures::AsyncWrite + Unpin + 'static,
     {
-        let ws_config = tungstenite::protocol::WebSocketConfig {
-            max_frame_size: Some(self.config.network.websocket_max_frame_size),
-            max_message_size: Some(self.config.network.websocket_max_message_size),
-            write_buffer_size: self.config.network.websocket_write_buffer_size,
-            max_write_buffer_size: self.config.network.websocket_write_buffer_size * 3,
-            ..Default::default()
-        };
+        let ws_config = tungstenite::protocol::WebSocketConfig::default()
+            .max_frame_size(Some(self.config.network.websocket_max_frame_size))
+            .max_message_size(Some(self.config.network.websocket_max_message_size))
+            .write_buffer_size(self.config.network.websocket_write_buffer_size)
+            .max_write_buffer_size(self.config.network.websocket_write_buffer_size * 3);
         let stream = async_tungstenite::accept_async_with_config(stream, Some(ws_config)).await?;
         let (ws_out, ws_in) = futures::StreamExt::split(stream);
 
@@ -552,10 +550,14 @@ impl<S: futures::AsyncRead + futures::AsyncWrite + Unpin> ConnectionWriter<S> {
         .with_context(|| "send_out_message")?;
 
         if let OutMessage::AnnounceResponse(_) | OutMessage::ScrapeResponse(_) = out_message {
-            *self.connection_valid_until.borrow_mut() = ValidUntil::new(
+            if let Some(valid_until) = ValidUntil::new(
                 self.server_start_instant,
                 self.config.cleaning.max_connection_idle,
-            );
+            ) {
+                *self.connection_valid_until.borrow_mut() = valid_until
+            } else {
+                ::log::warn!("clock monotonicity error, could not update connection_valid_until");
+            }
         }
 
         #[cfg(feature = "metrics")]

@@ -23,11 +23,12 @@ Features at a glance:
 - Supports forbidding/allowing info hashes
 - Prometheus metrics
 - Automated CI testing of full file transfers
+- Optional periodic exports of full scrape statistics (UDP only)
 
 Known users:
 
 - [explodie.org public tracker](https://explodie.org/opentracker.html) (`udp://explodie.org:6969`), typically [serving ~100,000 requests per second](https://explodie.org/tracker-stats.html)
-- [tracker.webtorrent.dev](https://tracker.webtorrent.dev) (`wss://tracker.webtorrent.dev`)
+- [webtorrent.dev](https://webtorrent.dev) (`wss://tracker.webtorrent.dev`)
 
 ## Performance of the UDP implementation
 

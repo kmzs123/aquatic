@@ -8,8 +8,7 @@ use futures_lite::{Stream, StreamExt};
 use glommio::channels::channel_mesh::{MeshBuilder, Partial, Role};
 use glommio::timer::TimerActionRepeat;
 use glommio::{enclose, prelude::*};
-use rand::prelude::SmallRng;
-use rand::SeedableRng;
+use rand::{make_rng, rngs::SmallRng};
 
 use aquatic_common::{ServerStartInstant, ValidUntil};
 
@@ -43,15 +42,19 @@ pub async fn run_swarm_worker(
     }));
 
     let max_peer_age = config.cleaning.max_peer_age;
-    let peer_valid_until = Rc::new(RefCell::new(ValidUntil::new(
-        server_start_instant,
-        max_peer_age,
-    )));
+    let peer_valid_until = Rc::new(RefCell::new(
+        ValidUntil::new(server_start_instant, max_peer_age)
+            .expect("Could not create initial ValidUntil due to monotonicity error"),
+    ));
 
     // Periodically update peer_valid_until
     TimerActionRepeat::repeat(enclose!((peer_valid_until) move || {
         enclose!((peer_valid_until) move || async move {
-            *peer_valid_until.borrow_mut() = ValidUntil::new(server_start_instant, max_peer_age);
+            if let Some(valid_until) = ValidUntil::new(server_start_instant, max_peer_age) {
+                *peer_valid_until.borrow_mut() = valid_until;
+            } else {
+                ::log::warn!("Could not update peer_valid_until due to monotonicity error. Peers may be removed earlier than they should.");
+            }
 
             Some(Duration::from_secs(1))
         })()
@@ -96,7 +99,7 @@ async fn handle_request_stream<S>(
 ) where
     S: Stream<Item = ChannelRequest> + ::std::marker::Unpin,
 {
-    let mut rng = SmallRng::from_entropy();
+    let mut rng: SmallRng = make_rng();
 
     while let Some(channel_request) = stream.next().await {
         match channel_request {

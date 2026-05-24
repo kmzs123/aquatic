@@ -25,7 +25,6 @@ use aquatic_common::{
 };
 use aquatic_udp_protocol::*;
 use rand::rngs::SmallRng;
-use rand::SeedableRng;
 
 use crate::common::*;
 use crate::config::Config;
@@ -196,7 +195,8 @@ impl SocketWorker {
         let peer_valid_until = ValidUntil::new(
             shared_state.server_start_instant,
             config.cleaning.max_peer_age,
-        );
+        )
+        .expect("Could not create initial peer ValidUntil due to monotonicity error");
 
         let mut worker = Self {
             config,
@@ -217,7 +217,7 @@ impl SocketWorker {
             pulse_timeout_sqe,
             resubmittable_sqe_buf,
             peer_valid_until,
-            rng: SmallRng::from_entropy(),
+            rng: rand::make_rng(),
         };
 
         CurrentRing::with(|ring| worker.run_inner(ring));
@@ -317,10 +317,16 @@ impl SocketWorker {
             USER_DATA_PULSE_TIMEOUT => {
                 self.validator.update_elapsed();
 
-                self.peer_valid_until = ValidUntil::new(
+                let opt_valid_until = ValidUntil::new(
                     self.shared_state.server_start_instant,
                     self.config.cleaning.max_peer_age,
                 );
+
+                if let Some(valid_until) = opt_valid_until {
+                    self.peer_valid_until = valid_until;
+                } else {
+                    ::log::warn!("Couldn't not update peer_valid until due to clock monotonicity error. As a consequence, peers may be removed earlier than they should.");
+                }
 
                 self.resubmittable_sqe_buf
                     .push(self.pulse_timeout_sqe.clone());

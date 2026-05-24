@@ -9,7 +9,6 @@ license.workspace = true
 repository.workspace = true
 
 readme = "./README.md"
-rust-version = "1.70"
 
 [lib]
 name = "aquatic_ws"
@@ -33,31 +32,31 @@ aquatic_toml_config.workspace = true
 aquatic_ws_protocol.workspace = true
 
 anyhow = "1"
-async-tungstenite = "0.28"
+async-tungstenite = "0.34"
 arc-swap = "1"
 cfg-if = "1"
 futures = "0.3"
 futures-lite = "1"
 futures-rustls = "0.26"
 glommio = "0.9"
-hashbrown = { version = "0.15", features = ["serde"] }
+hashbrown = { version = "0.17", features = ["serde"] }
 httparse = "1"
 indexmap = "2"
 log = "0.4"
 privdrop = "0.5"
-rand = { version = "0.8", features = ["small_rng"] }
+rand = "0.10"
 rustls = "0.23"
 rustls-pemfile = "2"
 serde = { version = "1", features = ["derive"] }
-signal-hook = { version = "0.3" }
+signal-hook = { version = "0.4" }
 slab = "0.4"
 slotmap = "1"
-socket2 = { version = "0.5", features = ["all"] }
-tungstenite = "0.24"
+socket2 = { version = "0.6", features = ["all"] }
+tungstenite = "0.29"
 
 # metrics feature
 metrics = { version = "0.24", optional = true }
-metrics-util = { version = "0.19", optional = true }
+metrics-util = { version = "0.20", optional = true }
 
 # mimalloc feature
 mimalloc = { version = "0.1", default-features = false, optional = true }
